@@ -59,61 +59,7 @@ import sys
 
 class SSD1325:
 
-    # Class constants are externally accessible as gaugette.ssd1325.SSD1325.CONST
-    # or my_instance.CONST
-
-    # TODO - insert underscores to rationalize constant names
-
-    EXTERNAL_VCC   = 0x1
-    SWITCH_CAP_VCC = 0x2
-    SET_LOW_COLUMN        = 0x00
-    SET_HIGH_COLUMN       = 0x10
-    SET_MEMORY_MODE       = 0x20
-    SET_COL_ADDRESS       = 0x15
-    SET_ROW_ADDRESS       = 0x75
-    RIGHT_HORIZ_SCROLL    = 0x26
-    LEFT_HORIZ_SCROLL     = 0x27
-    VERT_AND_RIGHT_HORIZ_SCROLL = 0x29
-    VERT_AND_LEFT_HORIZ_SCROLL = 0x2A
-    DEACTIVATE_SCROLL     = 0x2E
-    ACTIVATE_SCROLL       = 0x2F
-    SET_START_LINE        = 0xA1
-    SET_CONTRAST          = 0x81
-    CHARGE_PUMP           = 0x8D
-    SEG_REMAP             = 0xA0
-    SET_VERT_SCROLL_AREA  = 0xA3
-    DISPLAY_ALL_ON_RESUME = 0xA4
-    DISPLAY_ALL_ON        = 0xA5
-    NORMAL_DISPLAY        = 0xA4
-    INVERT_DISPLAY        = 0xA7
-    DISPLAY_OFF           = 0xA6
-    DISPLAY_ON            = 0xAF
-    COM_SCAN_INC          = 0xC0
-    COM_SCAN_DEC          = 0xC8
-    SET_DISPLAY_OFFSET    = 0xA2
-    SET_COM_PINS          = 0xDA
-    SET_VCOM_DETECT       = 0xBE
-    SET_DISPLAY_CLOCK_DIV = 0xB3
-    SET_PRECHARGE         = 0xBC
-    SET_MULTIPLEX         = 0xA8
-    SET_MASTER_CONFIG     = 0xAD
-    SET_VSL               = 0x0D
-    SET_PHASE_LENGTH      = 0xB1
-    SET_FRAME_FREQUENCY   = 0xB2
-    SET_GRAY_SCALE_TABLE  = 0xB8
-    SET_CURRENT_RANGE     = 0x84
-    SET_REMAP_FORMAT      = 0xA0
-    GA_OPTION             = 0x23
-    
-
-    MEMORY_MODE_HORIZ = 0x00
-    MEMORY_MODE_VERT  = 0x01
-    MEMORY_MODE_PAGE  = 0x02
-
-    # Device name will be /dev/spidev-{bus}.{device}
-    # dc_pin is the data/commmand pin.  This line is HIGH for data, LOW for command.
-    # We will keep d/c low and bump it high only for commands with data
-    # reset is normally HIGH, and pulled LOW to reset the display
+    input = [[0 for x in xrange(64)]for x in xrange(128)] # Display buffer [x][y]
 
     def __init__(self, bus=0, device=0, dc_pin=1, reset_pin=2, buffer_rows=64, buffer_cols=128, rows=64, cols=128):
 	self.cols = cols
@@ -148,12 +94,12 @@ class SSD1325:
         self.spi.writebytes(bytes)
         self.gpio.digitalWrite(self.dc_pin, self.gpio.LOW)
         
-    def begin(self, vcc_state = SWITCH_CAP_VCC):
+
+    def begin(self):
         self.gpio.delay(1) # 1ms
 	self.reset()
         self.command(0x0ae) # display off, sleep mode
-	self.command(0x0b3, 0x33) # set display clock divide ratio/oscillator frequency (set clock as 135 frames/sec)
-#	self.command(0x0b3, 0x091) # set display clock divide ratio/oscillator frequency (set clock as 135 frames/sec)
+	self.command(0x0b3, 0x033) # set display clock divide ratio/oscillator frequency (set clock as 135 frames/sec)
         self.command(0x0a8, 0x03f) # multiplex ratio: 0x03f * 1/64 duty
         self.command(0x0a2, 0x04c) # display offset, shift mapping ram counter
         self.command(0x0a1, 0x000) # display start line
@@ -185,3 +131,27 @@ class SSD1325:
 
     def reset_position(self):
 	self.command(0x24, 0x00, 0x00, 0x3F, 0x3F, 0x00)
+
+    def draw_buffer(self):
+	# Each column is a nibble. Two columns are joined together in a byte. Bit shift odd rows and merge with even rows.
+	displayBuffer = [[0 for x in xrange(64)] for x in xrange(64)]
+	xInput = 0
+        x = 0
+        y = 0
+        for x in range(0,64,1):
+                # Build vertical
+                for y in range(0,64,1):
+                        displayBuffer[x][y] = (self.input[x*2][y] << 4) + self.input[x*2+1][y]
+
+        #led.reset_position()
+        # write columns
+        for i in range(0, 64, 1):
+                self.data(displayBuffer[i])
+
+    def update_buffer(self,startX,startY, data = []):
+        xCounterOffset = 0
+        yCounterOffset = 0
+        for pos in range(0,len(data),1):
+                self.input[startX + xCounterOffset][startY+yCounterOffset] = data[pos]
+                xCounterOffset += 1
+
