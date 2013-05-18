@@ -135,9 +135,6 @@ class SSD1325:
     def draw_buffer(self):
 	# Each column is a nibble. Two columns are joined together in a byte. Bit shift odd rows and merge with even rows.
 	displayBuffer = [[0 for x in xrange(64)] for x in xrange(64)]
-	xInput = 0
-        x = 0
-        y = 0
         for x in range(0,64,1):
                 # Build vertical
                 for y in range(0,64,1):
